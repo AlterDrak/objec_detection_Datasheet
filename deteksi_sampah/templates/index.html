@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Waste Detection — AI Powered</title>
+    <meta name="description" content="Sistem deteksi tingkat kepenuhan tempat sampah berbasis AI menggunakan YOLOv8 Computer Vision">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        /* ===== CSS RESET & BASE ===== */
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #111827;
+            --bg-card: rgba(17, 24, 39, 0.7);
+            --bg-card-hover: rgba(30, 41, 59, 0.8);
+            --border-color: rgba(99, 102, 241, 0.15);
+            --border-glow: rgba(99, 102, 241, 0.3);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-primary: #6366f1;
+            --accent-secondary: #8b5cf6;
+            --gradient-primary: linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7);
+            --gradient-bg: linear-gradient(135deg, #0a0e1a 0%, #1a1040 50%, #0a0e1a 100%);
+            --color-overflowing: #ef4444;
+            --color-full: #f97316;
+            --color-half: #eab308;
+            --color-empty: #22c55e;
+            --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4);
+            --shadow-glow: 0 0 30px rgba(99, 102, 241, 0.15);
+            --radius-sm: 10px;
+            --radius-md: 16px;
+            --radius-lg: 24px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--gradient-bg);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            top: -50%; left: -50%;
+            width: 200%; height: 200%;
+            background: radial-gradient(circle at 20% 50%, rgba(99, 102, 241, 0.08) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.06) 0%, transparent 50%),
+                        radial-gradient(circle at 50% 80%, rgba(168, 85, 247, 0.04) 0%, transparent 50%);
+            animation: bgFloat 20s ease-in-out infinite;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        @keyframes bgFloat {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            33% { transform: translate(2%, -1%) rotate(1deg); }
+            66% { transform: translate(-1%, 2%) rotate(-1deg); }
+        }
+
+        /* ===== CONTAINER ===== */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px 20px 60px;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ===== HEADER ===== */
+        .header {
+            text-align: center;
+            padding: 32px 0 24px;
+        }
+
+        .header-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(99, 102, 241, 0.12);
+            border: 1px solid rgba(99, 102, 241, 0.2);
+            border-radius: 100px;
+            padding: 6px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #a5b4fc;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-bottom: 16px;
+        }
+
+        .header-badge .dot {
+            width: 7px; height: 7px;
+            background: #22c55e;
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            font-weight: 800;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1.2;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        /* ===== GLASS CARD ===== */
+        .glass-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 28px;
+            box-shadow: var(--shadow-md);
+            transition: var(--transition);
+        }
+
+        .glass-card:hover {
+            border-color: var(--border-glow);
+            box-shadow: var(--shadow-glow);
+        }
+
+        /* ===== MODE TABS ===== */
+        .mode-tabs {
+            display: flex;
+            gap: 4px;
+            background: rgba(15, 23, 42, 0.6);
+            border-radius: 14px;
+            padding: 4px;
+            margin-bottom: 24px;
+            border: 1px solid var(--border-color);
+        }
+
+        .mode-tab {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 11px;
+            background: transparent;
+            color: var(--text-muted);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .mode-tab.active {
+            background: var(--gradient-primary);
+            color: white;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+        }
+
+        .mode-tab:not(.active):hover {
+            color: var(--text-secondary);
+            background: rgba(99, 102, 241, 0.08);
+        }
+
+        /* ===== UPLOAD SECTION ===== */
+        .upload-section, .camera-section {
+            display: none;
+        }
+
+        .upload-section.active, .camera-section.active {
+            display: block;
+        }
+
+        .upload-area {
+            border: 2px dashed rgba(99, 102, 241, 0.25);
+            border-radius: var(--radius-md);
+            padding: 40px 24px;
+            text-align: center;
+            transition: var(--transition);
+            cursor: pointer;
+        }
+
+        .upload-area:hover, .upload-area.drag-over {
+            border-color: var(--accent-primary);
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        .upload-icon { font-size: 40px; margin-bottom: 12px; display: block; opacity: 0.7; }
+        .upload-text { color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 4px; }
+        .upload-hint { color: var(--text-muted); font-size: 0.78rem; }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+            margin-top: 16px;
+        }
+
+        input[type="file"] {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+            top: 0; left: 0;
+        }
+
+        .file-label {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 24px;
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.3);
+            border-radius: var(--radius-sm);
+            color: #a5b4fc;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .file-label:hover { background: rgba(99, 102, 241, 0.25); }
+
+        .file-name {
+            color: var(--text-secondary);
+            font-size: 0.82rem;
+            margin-top: 10px;
+            min-height: 20px;
+        }
+
+        /* ===== BUTTON ===== */
+        .btn-detect {
+            display: block;
+            width: 100%;
+            padding: 16px 32px;
+            margin-top: 20px;
+            background: var(--gradient-primary);
+            color: white;
+            border: none;
+            border-radius: var(--radius-md);
+            font-family: 'Inter', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-detect::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn-detect:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn-detect:hover::before { left: 100%; }
+        .btn-detect:active { transform: translateY(0); }
+
+        /* ===== CAMERA SECTION ===== */
+        .camera-container {
+            position: relative;
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            background: #000;
+            aspect-ratio: 16/10;
+        }
+
+        #cameraVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        #detectionCanvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .camera-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .btn-camera {
+            flex: 1;
+            padding: 14px 20px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-camera:hover {
+            border-color: var(--border-glow);
+            background: var(--bg-card-hover);
+        }
+
+        .btn-camera.active {
+            background: var(--gradient-primary);
+            border-color: transparent;
+            color: white;
+        }
+
+        .btn-camera.btn-switch {
+            flex: 0 0 auto;
+            padding: 14px 18px;
+        }
+
+        .camera-status {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 12px;
+            padding: 10px 16px;
+            background: rgba(15, 23, 42, 0.5);
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border-color);
+        }
+
+        .camera-status-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+        }
+
+        .camera-status-left .live-dot {
+            width: 8px; height: 8px;
+            background: var(--color-overflowing);
+            border-radius: 50%;
+            animation: pulse 1s ease-in-out infinite;
+        }
+
+        .camera-status-left .live-dot.active {
+            background: var(--color-empty);
+        }
+
+        .camera-fps {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        /* ===== LIVE STATS PANEL ===== */
+        .live-stats {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .live-stats.active {
+            display: block;
+            animation: fadeInUp 0.4s ease-out;
+        }
+
+        .live-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 10px;
+        }
+
+        .live-stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            padding: 14px;
+            text-align: center;
+            transition: var(--transition);
+        }
+
+        .live-stat-label {
+            font-size: 0.68rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+
+        .live-stat-value {
+            font-size: 1.3rem;
+            font-weight: 800;
+        }
+
+        /* ===== RESULTS SECTION ===== */
+        .results-section {
+            margin-top: 32px;
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(24px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: linear-gradient(90deg, var(--border-color), transparent);
+        }
+
+        /* ===== STAT CARDS ===== */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 14px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            text-align: center;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            background: var(--gradient-primary);
+            opacity: 0;
+            transition: var(--transition);
+        }
+
+        .stat-card:hover {
+            border-color: var(--border-glow);
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-glow);
+        }
+
+        .stat-card:hover::before { opacity: 1; }
+
+        .stat-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 1.6rem;
+            font-weight: 800;
+        }
+
+        .stat-value.status-overflowing { color: var(--color-overflowing); text-shadow: 0 0 20px rgba(239,68,68,0.3); }
+        .stat-value.status-full { color: var(--color-full); text-shadow: 0 0 20px rgba(249,115,22,0.3); }
+        .stat-value.status-half { color: var(--color-half); text-shadow: 0 0 20px rgba(234,179,8,0.3); }
+        .stat-value.status-empty { color: var(--color-empty); text-shadow: 0 0 20px rgba(34,197,94,0.3); }
+        .stat-value.status-unknown { color: var(--text-muted); }
+
+        /* ===== CONFIDENCE ===== */
+        .confidence-wrapper { margin-top: 10px; }
+
+        .confidence-bar {
+            width: 100%; height: 8px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 100px;
+            overflow: hidden;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            border-radius: 100px;
+            background: var(--gradient-primary);
+            transition: width 1s ease-out;
+            position: relative;
+        }
+
+        .confidence-fill::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            animation: shimmer 2s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .confidence-text {
+            font-size: 1.8rem;
+            font-weight: 800;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* ===== COUNT GRID ===== */
+        .count-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+
+        .count-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-sm);
+            padding: 14px 10px;
+            text-align: center;
+            transition: var(--transition);
+        }
+
+        .count-card:hover { transform: translateY(-2px); border-color: var(--border-glow); }
+        .count-card .count-icon { font-size: 18px; margin-bottom: 4px; }
+        .count-card .count-num { font-size: 1.5rem; font-weight: 800; }
+        .count-card .count-label {
+            font-size: 0.68rem; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.5px;
+            color: var(--text-muted); margin-top: 2px;
+        }
+
+        .count-overflow .count-num { color: var(--color-overflowing); }
+        .count-full .count-num { color: var(--color-full); }
+        .count-half .count-num { color: var(--color-half); }
+        .count-empty .count-num { color: var(--color-empty); }
+
+        /* ===== IMAGE GRID ===== */
+        .images-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .image-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            transition: var(--transition);
+        }
+
+        .image-card:hover {
+            border-color: var(--border-glow);
+            box-shadow: var(--shadow-glow);
+        }
+
+        .image-card-header {
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .image-card-header h3 {
+            font-size: 0.82rem; font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+
+        .image-card img {
+            width: 100%; display: block;
+            border-radius: 0;
+            transition: transform 0.4s ease;
+        }
+
+        .image-card:hover img { transform: scale(1.02); }
+
+        /* ===== FOOTER ===== */
+        .footer {
+            text-align: center;
+            padding: 32px 0 16px;
+            color: var(--text-muted);
+            font-size: 0.78rem;
+        }
+
+        .footer span {
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 600;
+        }
+
+        /* ===== MODAL ===== */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(10, 14, 26, 0.85);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .modal-content {
+            max-width: 550px;
+            width: 100%;
+            border-radius: var(--radius-lg);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            box-shadow: 0 10px 40px rgba(239, 68, 68, 0.1);
+            animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+            background: var(--bg-card);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes scaleIn {
+            from { transform: scale(0.9) translateY(10px); opacity: 0; }
+            to { transform: scale(1) translateY(0); opacity: 1; }
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 18px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 12px;
+        }
+
+        .modal-icon {
+            font-size: 28px;
+        }
+
+        .modal-header h2 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #ef4444;
+        }
+
+        .modal-body {
+            color: var(--text-secondary);
+            font-size: 0.88rem;
+            line-height: 1.5;
+        }
+
+        .modal-body p {
+            margin-bottom: 12px;
+        }
+
+        .error-reason-box {
+            background: rgba(239, 68, 68, 0.08);
+            border-left: 4px solid #ef4444;
+            padding: 12px 16px;
+            border-radius: 4px 8px 8px 4px;
+            margin-bottom: 16px;
+        }
+
+        .error-reason-box strong {
+            color: #fca5a5;
+            display: block;
+            margin-bottom: 4px;
+            font-size: 0.85rem;
+        }
+
+        .error-reason-box p {
+            margin-bottom: 0;
+            color: #fecaca;
+        }
+
+        .modal-body h3 {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin: 16px 0 8px;
+        }
+
+        .solution-list {
+            padding-left: 20px;
+            margin-bottom: 20px;
+        }
+
+        .solution-list li {
+            margin-bottom: 12px;
+            color: var(--text-secondary);
+        }
+
+        .solution-list li strong {
+            color: var(--text-primary);
+            font-size: 0.88rem;
+        }
+
+        .solution-list li p {
+            margin-top: 4px;
+            margin-bottom: 0;
+            font-size: 0.82rem;
+            color: var(--text-muted);
+        }
+
+        .solution-list code {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: #a5b4fc;
+            font-family: monospace;
+            font-size: 0.8rem;
+            word-break: break-all;
+        }
+
+        .solution-link {
+            color: #8b5cf6;
+            text-decoration: none;
+            font-weight: 600;
+            transition: var(--transition);
+            display: inline-block;
+            margin-top: 4px;
+            border-bottom: 1px dashed #8b5cf6;
+        }
+
+        .solution-link:hover {
+            color: #a78bfa;
+            border-bottom-style: solid;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            padding-top: 14px;
+        }
+
+        .btn-modal-close {
+            padding: 10px 24px;
+            background: var(--gradient-primary);
+            color: white;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+        }
+
+        .btn-modal-close:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 768px) {
+            .container { padding: 16px 12px 40px; }
+            .header h1 { font-size: 1.6rem; }
+            .images-grid { grid-template-columns: 1fr; }
+            .stats-grid { grid-template-columns: repeat(3, 1fr); }
+            .count-grid { grid-template-columns: repeat(3, 1fr); }
+            .glass-card { padding: 20px; }
+            .upload-area { padding: 28px 16px; }
+            .camera-container { aspect-ratio: 4/3; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <!-- HEADER -->
+    <header class="header">
+        <div class="header-badge">
+            <span class="dot"></span>
+            AI System Active
+        </div>
+        <h1>Smart Waste Detection</h1>
+        <p>Sistem Deteksi Kepenuhan Sampah Berbasis YOLOv8</p>
+    </header>
+
+    <!-- INPUT SECTION -->
+    <div class="glass-card">
+
+        <!-- MODE TABS -->
+        <div class="mode-tabs">
+            <button class="mode-tab active" id="tabUpload" onclick="switchMode('upload')">
+                📁 Upload Gambar
+            </button>
+            <button class="mode-tab" id="tabCamera" onclick="switchMode('camera')">
+                📹 Live Camera
+            </button>
+        </div>
+
+        <!-- UPLOAD MODE -->
+        <div class="upload-section active" id="uploadMode">
+            <form method="POST" enctype="multipart/form-data">
+                <div class="upload-area" id="uploadArea">
+                    <span class="upload-icon">📷</span>
+                    <p class="upload-text">Drag & drop gambar atau klik untuk memilih</p>
+                    <p class="upload-hint">Mendukung format JPG, PNG, JPEG</p>
+                    <div class="file-input-wrapper">
+                        <span class="file-label">📁 Pilih Gambar</span>
+                        <input type="file" name="image" id="fileInput" accept="image/*" required>
+                    </div>
+                    <p class="file-name" id="fileName"></p>
+                </div>
+                <button type="submit" class="btn-detect">
+                    🔍 Deteksi Sekarang
+                </button>
+            </form>
+        </div>
+
+        <!-- CAMERA MODE -->
+        <div class="camera-section" id="cameraMode">
+
+            <div class="camera-container">
+                <video id="cameraVideo" autoplay playsinline muted></video>
+                <canvas id="detectionCanvas"></canvas>
+            </div>
+
+            <div class="camera-controls">
+                <button class="btn-camera" id="btnStartCam" onclick="startCamera()">
+                    ▶️ Start Camera
+                </button>
+                <button class="btn-camera" id="btnDetectLive" onclick="toggleDetection()">
+                    🔍 Start Deteksi
+                </button>
+                <button class="btn-camera btn-switch" id="btnSwitchCam" onclick="switchCamera()">
+                    🔄
+                </button>
+            </div>
+
+            <div class="camera-status">
+                <div class="camera-status-left">
+                    <span class="live-dot" id="liveDot"></span>
+                    <span id="cameraStatusText">Camera Off</span>
+                </div>
+                <span class="camera-fps" id="fpsCounter">0 FPS</span>
+            </div>
+
+            <!-- LIVE STATS -->
+            <div class="live-stats" id="liveStats">
+                <div class="live-stats-grid">
+                    <div class="live-stat-card">
+                        <p class="live-stat-label">Status</p>
+                        <p class="live-stat-value" id="liveStatus" style="color: var(--text-muted);">—</p>
+                    </div>
+                    <div class="live-stat-card">
+                        <p class="live-stat-label">Confidence</p>
+                        <p class="live-stat-value" id="liveConf" style="color: var(--accent-primary);">—</p>
+                    </div>
+                    <div class="live-stat-card">
+                        <p class="live-stat-label">Objects</p>
+                        <p class="live-stat-value" id="liveObjects" style="color: var(--text-primary);">0</p>
+                    </div>
+                    <div class="live-stat-card">
+                        <p class="live-stat-label">Waktu</p>
+                        <p class="live-stat-value" id="liveTime" style="color: var(--text-primary);">—</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    {% if result_image %}
+
+    <!-- UPLOAD RESULTS -->
+    <div class="results-section">
+        <p class="section-title">📊 Hasil Analisis</p>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <p class="stat-label">Status Sampah</p>
+                {% if detected_class == "overflowing" %}
+                    <p class="stat-value status-overflowing">MELUAP</p>
+                {% elif detected_class == "full" %}
+                    <p class="stat-value status-full">PENUH</p>
+                {% elif detected_class == "half-full" %}
+                    <p class="stat-value status-half">SETENGAH</p>
+                {% elif detected_class == "empty" %}
+                    <p class="stat-value status-empty">KOSONG</p>
+                {% else %}
+                    <p class="stat-value status-unknown">N/A</p>
+                {% endif %}
+            </div>
+            <div class="stat-card">
+                <p class="stat-label">Confidence</p>
+                <p class="confidence-text">{{ confidence }}%</p>
+                <div class="confidence-wrapper">
+                    <div class="confidence-bar">
+                        <div class="confidence-fill" data-width="{{ confidence | int }}"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <p class="stat-label">Waktu Deteksi</p>
+                <p class="stat-value" style="color: var(--text-primary);">{{ detection_time }}s</p>
+            </div>
+        </div>
+
+        <p class="section-title">📦 Detail Objek</p>
+        <div class="count-grid">
+            <div class="count-card">
+                <div class="count-icon">📦</div>
+                <p class="count-num" style="color: var(--text-primary);">{{ total_objects }}</p>
+                <p class="count-label">Total</p>
+            </div>
+            <div class="count-card count-overflow">
+                <div class="count-icon">🔴</div>
+                <p class="count-num">{{ overflow_count }}</p>
+                <p class="count-label">Meluap</p>
+            </div>
+            <div class="count-card count-full">
+                <div class="count-icon">🟠</div>
+                <p class="count-num">{{ full_count }}</p>
+                <p class="count-label">Penuh</p>
+            </div>
+            <div class="count-card count-half">
+                <div class="count-icon">🟡</div>
+                <p class="count-num">{{ half_count }}</p>
+                <p class="count-label">Setengah</p>
+            </div>
+            <div class="count-card count-empty">
+                <div class="count-icon">🟢</div>
+                <p class="count-num">{{ empty_count }}</p>
+                <p class="count-label">Kosong</p>
+            </div>
+        </div>
+
+        <p class="section-title">🖼️ Perbandingan Gambar</p>
+        <div class="images-grid">
+            <div class="image-card">
+                <div class="image-card-header">
+                    <span>📤</span>
+                    <h3>Gambar Asli</h3>
+                </div>
+                <img src="{{ uploaded_image }}" alt="Uploaded Image">
+            </div>
+            <div class="image-card">
+                <div class="image-card-header">
+                    <span>🤖</span>
+                    <h3>Hasil Deteksi</h3>
+                </div>
+                <img src="{{ result_image }}" alt="Detection Result">
+            </div>
+        </div>
+    </div>
+
+    {% endif %}
+
+    <div class="footer">
+        <p>Powered by <span>YOLOv8</span> &middot; Smart Waste Management System</p>
+    </div>
+
+</div>
+
+<!-- CAMERA ERROR MODAL -->
+<div id="cameraErrorModal" class="modal-overlay" style="display: none;">
+    <div class="modal-content glass-card">
+        <div class="modal-header">
+            <span class="modal-icon">⚠️</span>
+            <h2>Akses Kamera Terhambat (Browser Security)</h2>
+        </div>
+        <div class="modal-body">
+            <p>Sistem mendeteksi bahwa browser Anda memblokir akses kamera pada halaman ini. Hal ini terjadi karena aturan keamanan browser terkait <strong>Secure Context (Protokol Aman)</strong>.</p>
+            
+            <div class="error-reason-box">
+                <strong>Penyebab Utama:</strong>
+                <p id="cameraErrorReason">Browser mewajibkan koneksi aman (HTTPS) atau 'localhost' agar fitur kamera (getUserMedia) dapat diaktifkan.</p>
+            </div>
+            
+            <h3>Cara Mengatasi (Pilih Salah Satu):</h3>
+            <ol class="solution-list">
+                <li>
+                    <strong>Gunakan HTTPS (Direkomendasikan):</strong>
+                    <p>Akses kembali website ini dengan protokol HTTPS aman:<br>
+                    <a href="" id="httpsLink" class="solution-link">Beralih ke HTTPS</a></p>
+                </li>
+                <li>
+                    <strong>Konfigurasi Chrome Flags (Khusus HP Android/Chrome):</strong>
+                    <p>Jika ingin tetap menggunakan HTTP biasa tanpa SSL, Anda bisa melakukan bypass dengan langkah berikut:</p>
+                    <ul>
+                        <li>Buka tab baru di Chrome HP Anda dan ketik: <code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code></li>
+                        <li>Ubah status menjadi <strong>Enabled</strong>.</li>
+                        <li>Masukkan alamat website ini pada kolom teks: <code><span id="currentOriginText"></span></code></li>
+                        <li>Klik tombol <strong>Relaunch</strong> di pojok kanan bawah Chrome untuk memuat ulang browser.</li>
+                    </ul>
+                </li>
+                <li>
+                    <strong>Gunakan Localhost:</strong>
+                    <p>Jika Anda mengakses dari komputer server sendiri, pastikan alamat di URL browser menggunakan <code>http://localhost:5000</code> atau <code>http://127.0.0.1:5000</code>.</p>
+                </li>
+            </ol>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-modal-close" onclick="closeCameraErrorModal()">Mengerti</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ===== MODE SWITCHING =====
+    function switchMode(mode) {
+        document.getElementById('uploadMode').classList.toggle('active', mode === 'upload');
+        document.getElementById('cameraMode').classList.toggle('active', mode === 'camera');
+        document.getElementById('tabUpload').classList.toggle('active', mode === 'upload');
+        document.getElementById('tabCamera').classList.toggle('active', mode === 'camera');
+
+        if (mode === 'upload') {
+            stopDetection();
+            stopCamera();
+        }
+    }
+
+    // ===== FILE INPUT =====
+    const fileInput = document.getElementById('fileInput');
+    const fileName = document.getElementById('fileName');
+    const uploadArea = document.getElementById('uploadArea');
+
+    if (fileInput) {
+        fileInput.addEventListener('change', function () {
+            if (this.files && this.files[0]) {
+                fileName.textContent = '📄 ' + this.files[0].name;
+                uploadArea.style.borderColor = 'rgba(99, 102, 241, 0.5)';
+                uploadArea.style.background = 'rgba(99, 102, 241, 0.05)';
+            }
+        });
+    }
+
+    if (uploadArea) {
+        uploadArea.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            this.classList.add('drag-over');
+        });
+        uploadArea.addEventListener('dragleave', function () {
+            this.classList.remove('drag-over');
+        });
+        uploadArea.addEventListener('drop', function (e) {
+            e.preventDefault();
+            this.classList.remove('drag-over');
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                fileName.textContent = '📄 ' + e.dataTransfer.files[0].name;
+            }
+        });
+    }
+
+    // ===== CAMERA VARIABLES =====
+    let stream = null;
+    let isDetecting = false;
+    let detectInterval = null;
+    let facingMode = 'environment'; // 'environment' = back, 'user' = front
+    let frameCount = 0;
+    let lastFpsTime = Date.now();
+
+    const video = document.getElementById('cameraVideo');
+    const canvas = document.getElementById('detectionCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const CLASS_COLORS = {
+        'empty': '#22c55e',
+        'half-full': '#eab308',
+        'full': '#f97316',
+        'overflowing': '#ef4444'
+    };
+
+    const CLASS_LABELS = {
+        'empty': 'KOSONG',
+        'half-full': 'SETENGAH',
+        'full': 'PENUH',
+        'overflowing': 'MELUAP'
+    };
+
+    // ===== START CAMERA =====
+    async function startCamera() {
+        try {
+            // Stop existing stream
+            if (stream) {
+                stream.getTracks().forEach(t => t.stop());
+            }
+
+            // Check if mediaDevices is supported
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                throw new TypeError("Cannot read properties of undefined (reading 'getUserMedia')");
+            }
+
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: facingMode,
+                    width: { ideal: 640 },
+                    height: { ideal: 480 }
+                },
+                audio: false
+            });
+
+            video.srcObject = stream;
+            await video.play();
+
+            document.getElementById('btnStartCam').innerHTML = '⏹️ Stop Camera';
+            document.getElementById('btnStartCam').classList.add('active');
+            document.getElementById('liveDot').classList.add('active');
+            document.getElementById('cameraStatusText').textContent =
+                facingMode === 'environment' ? 'Kamera Belakang' : 'Kamera Depan';
+
+        } catch (err) {
+            console.error('Camera error:', err);
+            showCameraErrorModal(err);
+        }
+    }
+
+    // ===== CAMERA ERROR MODAL LOGIC =====
+    function showCameraErrorModal(err) {
+        const modal = document.getElementById('cameraErrorModal');
+        const reasonEl = document.getElementById('cameraErrorReason');
+        const linkEl = document.getElementById('httpsLink');
+        const originEl = document.getElementById('currentOriginText');
+        
+        const currentOrigin = window.location.origin;
+        const currentHost = window.location.host;
+        
+        // Sediakan URL HTTPS jika saat ini memakai HTTP
+        if (window.location.protocol === 'http:') {
+            linkEl.href = 'https://' + currentHost + window.location.pathname;
+            linkEl.style.display = 'inline-block';
+        } else {
+            linkEl.style.display = 'none';
+        }
+        
+        originEl.textContent = currentOrigin;
+        
+        // Deteksi jenis error
+        if (err.name === 'NotAllowedError' || err.message.includes('Permission denied')) {
+            reasonEl.innerHTML = 'Akses kamera ditolak oleh Anda atau sistem operasi. Silakan periksa pengaturan izin kamera di peramban (browser) atau pengaturan aplikasi perangkat Anda.';
+        } else if (err.message.includes('getUserMedia') || err.message.includes('undefined') || !navigator.mediaDevices) {
+            reasonEl.innerHTML = 'Browser memblokir akses kamera karena halaman ini tidak menggunakan koneksi aman (HTTPS). Untuk mengakses dari perangkat mobile / HP, browser mewajibkan koneksi HTTPS atau bypass via Chrome Flags.';
+        } else {
+            reasonEl.innerHTML = 'Gagal mengakses kamera: ' + err.message;
+        }
+        
+        modal.style.display = 'flex';
+    }
+
+    function closeCameraErrorModal() {
+        document.getElementById('cameraErrorModal').style.display = 'none';
+    }
+
+    function stopCamera() {
+        if (stream) {
+            stream.getTracks().forEach(t => t.stop());
+            stream = null;
+        }
+        video.srcObject = null;
+
+        document.getElementById('btnStartCam').innerHTML = '▶️ Start Camera';
+        document.getElementById('btnStartCam').classList.remove('active');
+        document.getElementById('liveDot').classList.remove('active');
+        document.getElementById('cameraStatusText').textContent = 'Camera Off';
+
+        // Clear canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // ===== SWITCH CAMERA =====
+    function switchCamera() {
+        facingMode = facingMode === 'environment' ? 'user' : 'environment';
+        if (stream) {
+            startCamera();
+        }
+    }
+
+    // ===== TOGGLE DETECTION =====
+    function toggleDetection() {
+        if (isDetecting) {
+            stopDetection();
+        } else {
+            startDetection();
+        }
+    }
+
+    function startDetection() {
+        if (!stream) {
+            alert('Nyalakan kamera terlebih dahulu!');
+            return;
+        }
+
+        isDetecting = true;
+        document.getElementById('btnDetectLive').innerHTML = '⏹️ Stop Deteksi';
+        document.getElementById('btnDetectLive').classList.add('active');
+        document.getElementById('liveStats').classList.add('active');
+
+        frameCount = 0;
+        lastFpsTime = Date.now();
+
+        // Send frames every 500ms (2 FPS — good balance between speed and accuracy)
+        detectLoop();
+    }
+
+    function stopDetection() {
+        isDetecting = false;
+        if (detectInterval) {
+            clearTimeout(detectInterval);
+            detectInterval = null;
+        }
+
+        document.getElementById('btnDetectLive').innerHTML = '🔍 Start Deteksi';
+        document.getElementById('btnDetectLive').classList.remove('active');
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // ===== DETECTION LOOP =====
+    async function detectLoop() {
+        if (!isDetecting || !stream) return;
+
+        try {
+            // Capture frame from video
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = video.videoWidth || 640;
+            tempCanvas.height = video.videoHeight || 480;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+
+            // Convert to base64 JPEG
+            const imageData = tempCanvas.toDataURL('image/jpeg', 0.7);
+
+            // Send to server
+            const response = await fetch('/detect_frame', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: imageData })
+            });
+
+            const result = await response.json();
+
+            if (result.error) {
+                console.error('Detection error:', result.error);
+            } else {
+                drawDetections(result);
+                updateLiveStats(result);
+
+                // FPS counter
+                frameCount++;
+                const now = Date.now();
+                if (now - lastFpsTime >= 1000) {
+                    document.getElementById('fpsCounter').textContent =
+                        frameCount + ' FPS';
+                    frameCount = 0;
+                    lastFpsTime = now;
+                }
+            }
+
+        } catch (err) {
+            console.error('Fetch error:', err);
+        }
+
+        // Continue loop
+        if (isDetecting) {
+            detectInterval = setTimeout(detectLoop, 400);
+        }
+    }
+
+    // ===== DRAW BOUNDING BOXES ON CANVAS =====
+    function drawDetections(result) {
+        // Match canvas size to video display size
+        const rect = video.getBoundingClientRect();
+        canvas.width = rect.width;
+        canvas.height = rect.height;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (!result.detections || result.detections.length === 0) return;
+
+        for (const det of result.detections) {
+            const color = CLASS_COLORS[det.class] || '#ffffff';
+            const label = (CLASS_LABELS[det.class] || det.class) + ' ' + det.confidence + '%';
+
+            // Convert normalized coords to pixel coords
+            const x1 = det.bbox.x1 * canvas.width;
+            const y1 = det.bbox.y1 * canvas.height;
+            const x2 = det.bbox.x2 * canvas.width;
+            const y2 = det.bbox.y2 * canvas.height;
+            const w = x2 - x1;
+            const h = y2 - y1;
+
+            // Draw box
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 3;
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 8;
+            ctx.strokeRect(x1, y1, w, h);
+            ctx.shadowBlur = 0;
+
+            // Draw label background
+            ctx.font = 'bold 14px Inter, sans-serif';
+            const textWidth = ctx.measureText(label).width;
+            const labelH = 24;
+
+            ctx.fillStyle = color;
+            ctx.fillRect(x1, y1 - labelH, textWidth + 12, labelH);
+
+            // Draw label text
+            ctx.fillStyle = '#000';
+            ctx.fillText(label, x1 + 6, y1 - 7);
+        }
+    }
+
+    // ===== UPDATE LIVE STATS =====
+    function updateLiveStats(result) {
+        // Status
+        const statusEl = document.getElementById('liveStatus');
+        const statusLabel = CLASS_LABELS[result.status] || result.status;
+        const statusColor = CLASS_COLORS[result.status] || 'var(--text-muted)';
+        statusEl.textContent = statusLabel;
+        statusEl.style.color = statusColor;
+        statusEl.style.textShadow = '0 0 15px ' + statusColor + '60';
+
+        // Confidence
+        const confEl = document.getElementById('liveConf');
+        confEl.textContent = result.confidence > 0 ? result.confidence + '%' : '—';
+
+        // Objects
+        document.getElementById('liveObjects').textContent = result.total_objects;
+
+        // Time
+        document.getElementById('liveTime').textContent = result.detection_time + 's';
+    }
+
+    // ===== CLICK ON START CAMERA TOGGLES =====
+    document.getElementById('btnStartCam').addEventListener('click', function () {
+        // Override the onclick — handle toggle
+    });
+
+    // Override start button to toggle
+    const origStartCamera = startCamera;
+    document.getElementById('btnStartCam').onclick = function () {
+        if (stream) {
+            stopDetection();
+            stopCamera();
+        } else {
+            origStartCamera();
+        }
+    };
+</script>
+
+</body>
+</html>
